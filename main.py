@@ -3,13 +3,14 @@ import datetime
 import os
 import traceback
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import aiohttp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.message.message_event_result import MessageChain
+from astrbot.core.star.filter.command import GreedyStr
 
 # 保存新闻的目录
 SAVED_NEWS_DIR = Path("data", "plugins_data", "astrbot_plugin_daily_60s_news", "news")
@@ -20,7 +21,7 @@ SAVED_NEWS_DIR.mkdir(parents=True, exist_ok=True)
     "daily_60s_news",
     "CJSen",
     "这是 AstrBot 的一个每日60s新闻插件。支持定时发送和命令发送",
-    "1.0.4",
+    "1.0.6",
 )
 class Daily60sNewsPlugin(Star):
     """
@@ -42,7 +43,6 @@ class Daily60sNewsPlugin(Star):
     @filter.command_group("新闻")
     def mnews(self):
         """新闻命令分组"""
-        pass
 
     @mnews.command("news", alias={"早报", "新闻"})
     async def daily_60s_news(self, event: AstrMessageEvent):
@@ -87,12 +87,20 @@ class Daily60sNewsPlugin(Star):
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @mnews.command("push")
-    async def push_news(self, event: AstrMessageEvent):
+    async def push_news(self, event: AstrMessageEvent, content: GreedyStr):
         """
-        手动向目标群组推送今日60s新闻（仅管理员）
+        手动向目标群组推送今日60s新闻（仅管理员）。
+        若命令带有内容（如：/新闻 push 各位早上好），则把该内容原样推送到已配置的群组；
+        不带内容时，推送今日60s新闻。
         """
-        await self._send_daily_news_to_groups()
-        yield event.plain_result(f"{event.get_sender_name()}:已成功向群组推送新闻")
+        if content.strip():
+            sent = await self._send_custom_message_to_groups(str(content))
+            yield event.plain_result(
+                f"{event.get_sender_name()}:已将内容推送到 {sent} 个群组"
+            )
+        else:
+            await self._send_daily_news_to_groups()
+            yield event.plain_result(f"{event.get_sender_name()}:已成功向群组推送新闻")
 
     @mnews.command("text")
     async def push_text_news(self, event: AstrMessageEvent):
@@ -141,7 +149,7 @@ class Daily60sNewsPlugin(Star):
         """
         return os.path.exists(path)
 
-    def _get_news_file_path(self, news_type: str) -> Tuple[str, str]:
+    def _get_news_file_path(self, news_type: str) -> tuple[str, str]:
         """
         获取今日新闻文件的绝对路径和文件名
         :param news_type: 'text' 或 'image'
@@ -153,7 +161,7 @@ class Daily60sNewsPlugin(Star):
         logger.info(f"mnews path: {path}")
         return path, name
 
-    async def _get_text_news(self) -> Tuple[str, bool]:
+    async def _get_text_news(self) -> tuple[str, bool]:
         """
         获取文本新闻内容，若本地无则下载
         :return: (新闻内容, 是否成功)
@@ -166,7 +174,7 @@ class Daily60sNewsPlugin(Star):
         else:
             return await self._download_news(path, news_type="text")
 
-    async def _get_image_news(self) -> Tuple[str, bool]:
+    async def _get_image_news(self) -> tuple[str, bool]:
         """
         获取图片新闻路径，若本地无则下载
         :return: (图片路径, 是否成功)
@@ -177,7 +185,7 @@ class Daily60sNewsPlugin(Star):
         else:
             return await self._download_news(path, news_type="image")
 
-    async def _download_news(self, path: str, news_type: str) -> Tuple[Any, bool]:
+    async def _download_news(self, path: str, news_type: str) -> tuple[Any, bool]:
         """
         下载今日新闻（文本或图片），失败自动重试
         :param path: 保存路径
@@ -216,6 +224,27 @@ class Daily60sNewsPlugin(Star):
                     content = f"接口报错，请联系管理员:{e}"
                     return content, False
                 await asyncio.sleep(1)
+
+    async def _send_custom_message_to_groups(self, content: str) -> int:
+        """
+        把自定义文本内容推送到所有已配置的群组
+        :param content: 要推送的文本内容
+        :return: 成功推送的群组数量
+        """
+        success = 0
+        for target in self.config.groups:
+            try:
+                message_chain = MessageChain().message(content)
+                logger.info(f"[每日新闻] 推送自定义内容: {content[:50]}...")
+                await self.context.send_message(target, message_chain)
+                logger.info(f"[每日新闻] 已向{target}推送自定义内容。")
+                success += 1
+            except Exception as e:
+                error_message = str(e) if str(e) else "未知错误"
+                logger.error(f"[每日新闻] 推送自定义内容失败: {error_message}")
+                logger.exception("详细错误信息：")
+            await asyncio.sleep(2)  # 防止推送过快
+        return success
 
     async def _send_daily_news_to_groups(self):
         """

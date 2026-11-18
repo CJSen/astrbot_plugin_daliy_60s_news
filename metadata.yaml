@@ -1,5 +1,5 @@
 name: daily_60s_news # 这是你的插件的唯一识别名。
 desc: 这是 AstrBot 的一个每日60s新闻插件。支持定时发送命令获取新闻。 # 插件简短描述
-version: v1.0.5 # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v1.0.6 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: CJSen # 作者
 repo: https://github.com/CJSen/astrbot_plugin_daliy_60s_news # 插件的仓库地址

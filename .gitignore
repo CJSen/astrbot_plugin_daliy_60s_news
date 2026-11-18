@@ -1,2 +1,5 @@
 news
 __pycache__
+data/skills
+skills-lock.json
+.agents
