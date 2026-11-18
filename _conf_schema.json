@@ -33,6 +33,6 @@
     "type": "string",
     "hint": "使用https://github.com/vikiboss/60s提供的接口,客户端默认参数?date=20250xxx&encoding=text/image-proxy\n非同格式接口不可用",
     "obvious_hint": true,
-    "default": "https://60s-api-cf.viki.moe/v2/60s"
+    "default": "https://60s.viki.moe/v2/60s"
   }
 }
